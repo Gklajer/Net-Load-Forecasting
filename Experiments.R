@@ -8,6 +8,8 @@ library(forecast)
 Data0 <- read_delim("Data/train.csv", delim = ",")
 Data1 <- read_delim("Data/test.csv", delim = ",")
 
+DataCOVID0 <- read_delim("Data/OxCGRT_simplified_fr/Data0-COVID_Indicators.csv", delim = ",")
+DataCOVID1 <- read_delim("Data/OxCGRT_simplified_fr/Data1-COVID_Indicators.csv", delim = ",")
 
 Data0$Time <- as.numeric(Data0$Date)
 Data1$Time <- as.numeric(Data1$Date)
