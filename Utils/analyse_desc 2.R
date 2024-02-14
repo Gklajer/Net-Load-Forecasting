@@ -40,6 +40,7 @@ lines(Data0$Date, Data0$Solar_power, col = col[2])
 
 
 hist(Data0$Net_demand, breaks = 100)
+
 # plot(Data0$Date, Data0$Temp, type='l')
 
 plot(Data0$Date, Data0$Net_demand, type = "l", xlim = range(Data0$Date, Data1$Date))
