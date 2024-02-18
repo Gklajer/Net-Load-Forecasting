@@ -5,11 +5,11 @@ library(yarrr)
 library(magrittr)
 library(forecast)
 library(tidyverse)
-library(readr)
 source('Utils/score.R')
 
-Data0 <- read_csv("Data/train.csv")
-Data1<- read_csv("Data/test.csv")
+
+Data0 <- read_delim("Data/train.csv", delim = ",")
+Data1 <- read_delim("Data/test.csv", delim = ",")
 
 range(Data0$Date)
 
@@ -52,7 +52,7 @@ sqrt(g1$gcv.ubre)
 
  # g1.forecast  <- predict(g1, newdata=Data1)
  # rmse.old(Data1$Load-g1.forecast)
-plot(g1)
+plot(g1, residuals = T)
 
 
 
@@ -105,7 +105,7 @@ gam1.forecast<-predict(gam1,  newdata= Data0[sel_b,])
 rmse1.forecast <- rmse.old(Data0$Load[sel_b]-gam1.forecast)
 
 #####model 2
-equation <- Load~s(as.numeric(Date),k=3, bs='cr')+s(toy,k=30, bs='cc')+s(Temp,k=10, bs='cr')+WeekDays
+equation <- Load~s(as.numeric(Date),k=3, bs='cr')+s(toy,k=30, bs='cc')+s(Temp,k=10, bs='cr')+as.factor(WeekDays)
 Block_residuals<-lapply(block_list, blockRMSE, equation=equation)%>%unlist
 hist(Block_residuals, breaks=20)
 rmse2 <- rmse.old(Block_residuals)
@@ -123,11 +123,13 @@ rmse2.forecast <- rmse.old(Data0[sel_b,]$Load-gam2.forecast)
 
 #####model 3
 equation <- Load~s(as.numeric(Date),k=3, bs='cr')+s(toy,k=30, bs='cc')+s(Temp,k=10, bs='cr')+
-  s(Load.1, bs='cr')+WeekDays
+  s(Load.1, bs='cr')+as.factor(WeekDays)
+
 Block_residuals<-lapply(block_list, blockRMSE, equation=equation)%>%unlist
 rmse3 <- rmse.old(Block_residuals)
 rmse3
 gam3<-gam(equation, data=Data0[sel_a,])
+summary(gam3)
 
 hist(Block_residuals, breaks=20)
 plot(Block_residuals,  type='l')
@@ -141,13 +143,14 @@ rmse3.forecast <- rmse.old(Data0[sel_b,]$Load-gam3.forecast)
 
 
 #####model 4
-equation <- Load~s(as.numeric(Date),k=3,  bs='cr')+s(toy,k=30, bs='cc')+s(Temp,k=10, bs='cr') + s(Load.1, bs='cr')+ s(Load.7, bs='cr') + WeekDays
+equation <- Load~s(as.numeric(Date),k=3,  bs='cr')+s(toy,k=30, bs='cc')+s(Temp,k=10, bs='cr') + s(Load.1, k=20, bs='cr')+ s(Load.7, bs='cr') + as.factor(WeekDays)
 Block_residuals<-lapply(block_list, blockRMSE, equation=equation)%>%unlist
 rmse4 <- rmse.old(Block_residuals)
 rmse4
 gam4<-gam(equation, data=Data0[sel_a,])
 summary(gam4)
 
+Acf(Block_residuals)
 
 plot(Data0$Date, Block_residuals, pch=16)
 
@@ -161,7 +164,7 @@ rmse4.forecast <- rmse.old(Data0[sel_b,]$Load-gam4.forecast)
 
 
 #####model 5
-equation <- Load~s(as.numeric(Date),k=3, bs='cr') + s(toy,k=30, bs='cc') + s(Temp,k=10, bs='cr') + s(Load.1, bs='cr')+ s(Load.7, bs='cr') + WeekDays +BH
+equation <- Load~s(as.numeric(Date),k=3, bs='cr') + s(toy,k=30, bs='cc') + s(Temp,k=10, bs='cr') + s(Load.1, k=20, bs='cr')+ s(Load.7, bs='cr') + as.factor(WeekDays) +BH
 Block_residuals<-lapply(block_list, blockRMSE, equation=equation)%>%unlist
 rmse5 <- rmse.old(Block_residuals)
 #rmse5 <- rmse.old.old(Block_residuals)
@@ -169,6 +172,8 @@ rmse5
 gam5<-gam(equation, data=Data0[sel_a,])
 summary(gam5)
 plot(Data0$Date, Block_residuals, pch=16)
+
+boxplot(Block_residuals~Data0$BH)
 
 plot(Data0$Temp_s95, Block_residuals, pch=16)
 test <- gam(Block_residuals~s(Data0$Temp_s95))
@@ -184,8 +189,8 @@ gam5.forecast<-predict(gam5,  newdata= Data0[sel_b,])
 rmse5.forecast <- rmse.old(Data0[sel_b,]$Load-gam5.forecast)
 
 #####model 6
-equation <- Load~s(as.numeric(Date),k=3, bs='cr') + s(toy,k=30, bs='cc') + s(Temp,k=10, bs='cr') + s(Load.1, bs='cr')+ s(Load.7, bs='cr') +
-  s(Temp_s99,k=10, bs='cr') + WeekDays +BH
+equation <- Load~s(as.numeric(Date),k=3, bs='cr') + s(toy,k=30, bs='cc') + s(Temp,k=10, bs='cr') + s(Load.1, k=20, bs='cr')+ s(Load.7, bs='cr') +
+  s(Temp_s99, k=10, bs='cr') + as.factor(WeekDays) + BH
 Block_residuals<-lapply(block_list, blockRMSE, equation=equation)%>%unlist
 rmse6 <- rmse.old(Block_residuals)
 rmse6
@@ -194,7 +199,7 @@ sqrt(gam6$gcv.ubre)
 summary(gam6)
 
 plot(Data0$Date, Block_residuals, pch=16)
-acf(Block_residuals)
+Acf(Block_residuals)
 plot(Data0$Temp, Block_residuals, pch=16)
 
 plot(Data0$Temp_s95_max, Block_residuals, pch=16)
@@ -210,9 +215,7 @@ summary(test)
 gam6.forecast<-predict(gam6,  newdata= Data0[sel_b,])
 rmse6.forecast <- rmse.old(Data0[sel_b,]$Load-gam6.forecast)
 
-
-
-
+sqrt(gam6$gcv.ubre)
 
 ####################################################################################################
 ######################### residual correction
@@ -262,7 +265,7 @@ legend("topright", col=c("red","black","blue"), c("gcv","blockCV","test"), pch=2
 ################################################################################
 #####
 equation <- Net_demand ~ s(as.numeric(Date),k=3, bs='cr') + s(toy,k=30, bs='cc') + s(Temp,k=10, bs='cr') + s(Load.1, bs='cr')+ s(Load.7, bs='cr') +
-  s(Temp_s99,k=10, bs='cr') + WeekDays +BH +
+  s(Temp_s99,k=10, bs='cr') + as.factor(WeekDays) +BH +
   s(Wind) + s(Nebulosity)
 gam_net1 <- gam(equation,  data=Data0[sel_a,])
 summary(gam_net1)         
@@ -276,7 +279,7 @@ pinball_loss(y=Data0$Net_demand[sel_b], gam_net1.forecast+quant, quant=0.95, out
 
 #####
 equation <- Net_demand ~ s(as.numeric(Date),k=3, bs='cr') + s(toy,k=30, bs='cc') + s(Temp,k=10, bs='cr') + s(Load.1, bs='cr')+ s(Load.7, bs='cr') +
-  s(Temp_s99,k=10, bs='cr') + WeekDays +BH +
+  s(Temp_s99,k=10, bs='cr') + as.factor(WeekDays) +BH +
   s(Wind) + te(as.numeric(Date), Nebulosity, k=c(4,10))
 gam_net2 <- gam(equation,  data=Data0[sel_a,])
 summary(gam_net2)         
@@ -290,11 +293,13 @@ pinball_loss(y=Data0$Net_demand[sel_b], gam_net2.forecast+quant, quant=0.95, out
 
 #####
 equation <- Net_demand ~ s(as.numeric(Date),k=3, bs='cr') + s(toy,k=30, bs='cc') + s(Temp,k=10, bs='cr') + s(Load.1, bs='cr')+ s(Load.7, bs='cr')  +
-  s(Temp_s99,k=10, bs='cr') + WeekDays +BH +
+  s(Temp_s99,k=10, bs='cr') + as.factor(WeekDays) + BH +
   s(Wind) + te(as.numeric(Date), Nebulosity, k=c(4,10)) +
   s(Net_demand.1, bs='cr') +  s(Net_demand.7, bs='cr')
 
 gam_net3 <- gam(equation,  data=Data0[sel_a,])
+
+summary(gam_net3)
 sqrt(gam_net3$gcv.ubre)
 gam_net3.forecast<-predict(gam_net3,  newdata= Data0[sel_b,])
 rmse_net3.forecast <- rmse(Data0[sel_b,]$Net_demand, gam_net3.forecast)
@@ -304,9 +309,6 @@ pinball_loss(y=Data0$Net_demand[sel_b], gam_net3.forecast+quant, quant=0.95, out
 
 mean(Data0[sel_b,]$Net_demand<gam_net3.forecast+quant)
 
-
-
 hist(gam_net3$residuals, breaks=50)
-
 
 #################gamlss

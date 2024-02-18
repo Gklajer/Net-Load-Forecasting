@@ -1,11 +1,16 @@
-rm(list = objects())
-graphics.off()
-library(tidyverse)
+rm(list = objects()); graphics.off()
+
 library(lubridate)
 library(forecast)
+library(magrittr)
+library(mgcv)
+library(quantreg)
+library(tidyverse)
+library(yarrr)
 source("Utils/score.R")
 source("Utils/utils.R")
 
+####
 
 Data0 <- read_delim("Data/train.csv", delim = ",")
 Data1 <- read_delim("Data/test.csv", delim = ",")
@@ -22,28 +27,12 @@ Data1$Time <- as.numeric(Data1$Date)
 Data0$WeekDays <- as.factor(Data0$WeekDays)
 Data1$WeekDays <- as.factor(Data1$WeekDays)
 
-summary(Data0)
-
-
 sel_a <- which(Data0$Year <= 2021)
-sel_b <- which(Data0$Year > 2021)
-sel_c <- which(Data0$Year >= 2018)
+sel_b <- -sel_a
 
 ##### regroupement de modalités
 Data0$WeekDaysGrouped <- forcats::fct_recode(weekdays(Data0$Date), "WorkDay" = "Thursday", "WorkDay" = "Tuesday", "WorkDay" = "Wednesday", "WorkDay" = "Friday")
 Data1$WeekDaysGrouped <- forcats::fct_recode(weekdays(Data1$Date), "WorkDay" = "Thursday", "WorkDay" = "Tuesday", "WorkDay" = "Wednesday", "WorkDay" = "Friday")
-
-
-###### bloc CV
-Nblock <- 8
-borne_block <- seq(1, nrow(Data0), length = Nblock + 1) %>% floor()
-block_list <- list()
-l <- length(borne_block)
-for (i in c(2:(l - 1)))
-{
-  block_list[[i - 1]] <- c(borne_block[i - 1]:(borne_block[i] - 1))
-}
-block_list[[l - 1]] <- c(borne_block[l - 1]:(borne_block[l]))
 
 #### Temperatures Spline Features
 Data0$Temp_trunc1 <- pmax(Data0$Temp - 285, 0)
@@ -53,21 +42,14 @@ Data1$Temp_trunc1 <- pmax(Data1$Temp - 285, 0)
 Data1$Temp_trunc2 <- pmax(Data1$Temp - 295, 0)
 
 #### Fourier features
-
 w <- 2 * pi / (365)
-Nfourier <- 50
+Nfourier <- 10
+
 for (i in c(1:Nfourier))
 {
   assign(paste("cos", i, sep = ""), cos(w * Data0$Time * i))
   assign(paste("sin", i, sep = ""), sin(w * Data0$Time * i))
 }
-
-cos <- paste("cos", c(1:Nfourier), sep = "", collapse = ",")
-sin <- paste("sin", c(1:Nfourier), sep = "", collapse = ",")
-
-Data0 <- eval(parse(text = paste("data.frame(Data0,", cos, ",", sin, ")", sep = "")))
-
-Nfourier <- 10
 
 cos <- paste(c("cos"), c(1:Nfourier), sep = "")
 sin <- paste(c("sin"), c(1:Nfourier), sep = "")
@@ -80,19 +62,16 @@ for (i in c(1:Nfourier))
   assign(paste("sin", i, sep = ""), sin(w * Data1$Time * i))
 }
 
-cos <- paste("cos", c(1:Nfourier), sep = "", collapse = ",")
-sin <- paste("sin", c(1:Nfourier), sep = "", collapse = ",")
-
-Data1 <- eval(parse(text = paste("data.frame(Data1,", cos, ",", sin, ")", sep = "")))
-
-Nfourier <- 10
-
 cos <- paste(c("cos"), c(1:Nfourier), sep = "")
 sin <- paste(c("sin"), c(1:Nfourier), sep = "")
 
 Data1$Fourier10 <- eval(parse(text = paste(c(cos, sin), collapse = "+")))
 
+rm(list = c(cos, sin))
+
 ### Nébulosité
+sel_c <- which(Data0$Year >= 2018)
+
 Data0$Nebulosity_transformed = Data0$Nebulosity_weighted
 Data0$Nebulosity_transformed[-sel_c] = Data0$Nebulosity_transformed[-sel_c] * sqrt(var(Data0$Nebulosity_transformed[sel_c]) / var(Data0$Nebulosity_transformed[-sel_c]))
 Data0$Nebulosity_transformed[-sel_c] = Data0$Nebulosity_transformed[-sel_c] + mean(Data0$Nebulosity_transformed[sel_c]) - mean(Data0$Nebulosity_transformed[-sel_c])
@@ -101,250 +80,174 @@ Data1$Nebulosity_transformed = Data1$Nebulosity_weighted
 Data1$Nebulosity_transformed[-sel_c] = Data1$Nebulosity_transformed[-sel_c] * sqrt(var(Data1$Nebulosity_transformed[sel_c]) / var(Data1$Nebulosity_transformed[-sel_c]))
 Data1$Nebulosity_transformed[-sel_c] = Data1$Nebulosity_transformed[-sel_c] + mean(Data1$Nebulosity_transformed[sel_c]) - mean(Data1$Nebulosity_transformed[-sel_c])
 
-###############################################################################################################################################################
-##################################################### feature engineering
-###############################################################################################################################################################
-
-################################################################################## Cycle hebdo
-mod0 <- lm(Net_demand ~ WeekDays, data = Data0[sel_a, ])
-summary(mod0)
-mod0.forecast <- predict(mod0, newdata = Data0[sel_b, ])
-rmse(y = Data0$Net_demand[sel_b], ychap = mod0.forecast)
-
-mod0.cvpred <- lapply(block_list, fitmod, eq = "Net_demand ~ WeekDays") %>% unlist()
-rmse(y = Data0$Net_demand, ychap = mod0.cvpred, digits = 2)
-
-res <- Data0$Net_demand - mod0.cvpred
-quant <- qnorm(0.95, mean = mean(res), sd = sd(res))
-pb0 <- pinball_loss(y = Data0$Net_demand[sel_b], mod0.forecast + quant, quant = 0.95, output.vect = FALSE)
-summary(Data0$WeekDaysGrouped)
-
-mod0 <- lm(Net_demand ~ WeekDaysGrouped , data = Data0[sel_a, ])
-summary(mod0)
-mod0.forecast <- predict(mod0, newdata = Data0[sel_b, ])
-rmse(y = Data0$Net_demand[sel_b], ychap = mod0.forecast)
-
-mod0.cvpred <- lapply(block_list, fitmod, eq = "Net_demand ~ WeekDaysGrouped") %>% unlist()
-rmse(y = Data0$Net_demand, ychap = mod0.cvpred, digits = 2)
-
-res <- Data0$Net_demand - mod0.cvpred
-quant <- qnorm(0.95, mean = mean(res), sd = sd(res))
-pb0 <- pinball_loss(y = Data0$Net_demand[sel_b], mod0.forecast + quant, quant = 0.95, output.vect = FALSE)
-
-#### Temperature polynomial/spline features
-
-mod1 <- lm(Net_demand ~ WeekDaysGrouped + Temp, data = Data0[sel_a, ])
-summary(mod1)
-mod1.forecast <- predict(mod1, newdata = Data0[sel_b, ])
-rmse(y = Data0$Net_demand[sel_b], ychap = mod1.forecast)
-mod1.cvpred <- lapply(block_list, fitmod, eq = "Net_demand ~ WeekDaysGrouped + Temp") %>% unlist()
-rmse(y = Data0$Net_demand, ychap = mod1.cvpred)
-
-res <- Data0$Net_demand - mod1.cvpred
-quant <- qnorm(0.95, mean = mean(res), sd = sd(res))
-pb1 <- pinball_loss(y = Data0$Net_demand[sel_b], mod1.forecast + quant, quant = 0.95, output.vect = FALSE)
-
-plot(Data0[sel_a, ]$Temp, Data0[sel_a, ]$Net_demand)
-plot(Data0[sel_a, ]$Temp, mod1$residuals)
-
-mod2 <- lm(Net_demand ~ WeekDaysGrouped + Temp + I(Temp^2), data = Data0[sel_a, ])
-mod2.forecast <- predict(mod2, newdata = Data0[sel_b, ])
-summary(mod2)
-rmse(y = Data0$Net_demand[sel_b], ychap = mod2.forecast)
-
-mod2.cvpred <- lapply(block_list, fitmod, eq = "Net_demand ~ WeekDaysGrouped + Temp +I(Temp^2)") %>% unlist()
-rmse(y = Data0$Net_demand, ychap = mod2.cvpred)
-
-res <- Data0$Net_demand - mod2.cvpred
-quant <- qnorm(0.95, mean = mean(res), sd = sd(res))
-pb2 <- pinball_loss(y = Data0$Net_demand[sel_b], mod2.forecast + quant, quant = 0.95, output.vect = FALSE)
-
-plot(Data0$Temp, Data0$Net_demand, pch = 20)
-
-plot(Data0$Temp, Data0$Temp_trunc1, pch = 20)
-
-mod3 <- lm(Net_demand ~ WeekDaysGrouped + Temp + Temp_trunc1 + Temp_trunc2, data = Data0[sel_a, ])
-mod3.forecast <- predict(mod3, newdata = Data0[sel_b, ])
-summary(mod3)
-rmse(y = Data0$Net_demand[sel_b], ychap = mod3.forecast)
-
-mod3.cvpred <- lapply(block_list, fitmod, eq = "Net_demand ~ WeekDaysGrouped + Temp + Temp_trunc1 + Temp_trunc2") %>% unlist()
-rmse(y = Data0$Net_demand, ychap = mod3.cvpred)
-res <- Data0$Net_demand - mod2.cvpred
-quant <- qnorm(0.95, mean = mean(res), sd = sd(res))
-pb3 <- pinball_loss(y = Data0$Net_demand[sel_b], mod3.forecast + quant, quant = 0.95, output.vect = FALSE)
-
-plot(Data0[sel_a, ]$Temp, mod3$residuals)
-
-##
-
-Nfourier <- 30
-lm.fourier <- list()
-eq <- list()
-for (i in c(1:Nfourier))
+###### bloc CV
+Nblock <- 8
+borne_block <- seq(1, nrow(Data0), length = Nblock + 1) %>% floor()
+block_list <- list()
+l <- length(borne_block)
+for (i in c(2:(l - 1)))
 {
-  cos <- paste(c("cos"), c(1:i), sep = "")
-  sin <- paste(c("sin"), c(1:i), sep = "")
-  fourier <- paste(c(cos, sin), collapse = "+")
-  eq[[i]] <- as.formula(paste("Net_demand~ WeekDaysGrouped + Temp + Temp_trunc1 + Temp_trunc2+", fourier, sep = ""))
-  lm.fourier[[i]] <- lm(eq[[i]], data = Data0[sel_a, ])
+  block_list[[i - 1]] <- c(borne_block[i - 1]:(borne_block[i] - 1))
 }
+block_list[[l - 1]] <- c(borne_block[l - 1]:(borne_block[l]))
+###############################################################################################################################################################
 
-lm(eq[[1]], data = Data0)
+########################################
+##### Linear Models
+########################################
 
+eq <- Net_demand ~ WeekDays + Temp + Temp_trunc1 + Temp_trunc2 + Fourier10
 
-adj.rsquare <- lapply(
-  lm.fourier,
-  function(x) {
-    summary(x)$adj.r.squared
-  }
-) %>% unlist()
+mod.lm <- lm(eq, data = Data0[sel_a,])
+summary(mod.lm)
 
-fit.rmse <- lapply(
-  lm.fourier,
-  function(x) {
-    rmse(Data0$Net_demand[sel_a], x$fitted)
-  }
-) %>% unlist()
+nb_eval = 100
+trainset_size = nrow(Data0) - nrow(Data1) - (nb_eval - 1)
+testset_size = nrow(Data1)
 
-forecast.rmse <- lapply(
-  lm.fourier,
-  function(x) {
-    rmse(Data0$Net_demand[sel_b], predict(x, newdata = Data0[sel_b, ]))
-  }
-) %>% unlist()
+cv1 = time_cv(lm, eq, Data0, trainset_size, testset_size, nb_eval, type = "rolling")
 
-fit.mape <- lapply(
-  lm.fourier,
-  function(x) {
-    mape(Data0$Net_demand[sel_a], x$fitted)
-  }
-) %>% unlist()
+cv = cv1
 
-forecast.mape <- lapply(
-  lm.fourier,
-  function(x) {
-    mape(Data0$Net_demand[sel_b], predict(x, newdata = Data0[sel_b, ]))
-  }
-) %>% unlist()
+par(mfrow=c(2, 2))
+boxplot(cv$res$mean, ylab="in MW", main="mean"); boxplot(cv$res$quant, main="quant")
+boxplot(cv$res$rmse, ylab="in MW", main="rmse"); boxplot(cv$res$pb, main="pb")
 
+med_pb_idx = which.median(cv$res$pb)
+res_med_pb = as.numeric(cv$res$val[med_pb_idx,])
 
-plot(adj.rsquare, type = "b", pch = 20)
-
-plot(fit.rmse, type = "b", pch = 20, ylim = range(fit.rmse, forecast.rmse), col = "royalblue2")
-lines(forecast.rmse, type = "b", pch = 20, col = "orangered2")
-legend("top", c("fit", "forecast"), col = c("royalblue2", "orangered2"), lty = 1)
-
-##
-
-eq4 <- as.formula("Net_demand ~ WeekDaysGrouped + Temp + Temp_trunc1 + Temp_trunc2 + Fourier10")
-
-mod4 <- lm(eq4, data = Data0[sel_a, ])
-mod4.forecast <- predict(mod4, newdata = Data0[sel_b, ])
-summary(mod4)
-rmse(y = Data0$Net_demand[sel_b], ychap = mod4.forecast)
-
-mod4.cvpred <- lapply(block_list, fitmod, eq = eq4) %>% unlist()
-rmse(y = Data0$Net_demand, ychap = mod4.cvpred)
-
-res <- Data0$Net_demand - mod4.cvpred
-quant <- qnorm(0.95, mean = mean(res), sd = sd(res))
-pb4 <- pinball_loss(y = Data0$Net_demand[sel_b], mod4.forecast + quant, quant = 0.95, output.vect = FALSE)
-
-
+par(mfrow=c(1, 1))
+qqnorm(res_med_pb); qqline(res_med_pb)
+hist(res_med_pb, breaks = 50)
+plot(res_med_pb, type="l")
 
 ######### Additional features
-eq5 <- as.formula("Net_demand ~ WeekDays + Net_demand.1 + Net_demand.7 + Temp + Temp_trunc1 + Temp_trunc2 + Nebulosity + Wind + Wind_power.1 + Solar_power.1 + BH + BH_before + Holiday + StringencyIndex_Average + Fourier10")
 
-mod5 <- lm(eq5, data = Data0[sel_c, ])
-mod5.forecast <- predict(mod5)
-mod5.forecast <- predict(mod5, newdata = Data1)
-summary(mod5)
-rmse(y = Data0$Net_demand[sel_b], ychap = mod5.forecast)
+eq <- Net_demand ~ WeekDays + Net_demand.1 + Net_demand.7 + Temp + Temp_trunc1 +
+  Temp_trunc2 + Nebulosity + Wind + Wind_power.1 + Solar_power.1 +
+  BH + BH_before + Holiday + StringencyIndex_Average + Fourier10
 
-mod5.cvpred <- lapply(block_list, fitmod, eq = eq5) %>% unlist()
-rmse(y = Data0$Net_demand, ychap = mod5.cvpred)
+mod.lm <- lm(eq, data = Data0[sel_a,])
+summary(mod.lm)
 
-res <- Data0$Net_demand[sel_c] - mod5.forecast
-quant <- qnorm(0.95, mean = mean(res), sd = sd(res))
-pb5 <- pinball_loss(y = Data0$Net_demand[sel_b], mod5.forecast + quant, quant = 0.95, output.vect = FALSE)
+cv2 = time_cv(lm, eq, Data0, trainset_size, testset_size, nb_eval, type = "rolling")
 
-submit <- read_delim(file = "Data/sample_submission.csv", delim = ",")
-submit$Net_demand <- mod5.forecast + quant
-write.table(submit, file = "Data/submission_lm.csv", quote = F, sep = ",", dec = ".", row.names = F)
+cv = cv2
 
+par(mfrow=c(2, 2))
+boxplot(cv$res$mean, ylab="in MW", main="mean"); boxplot(cv$res$quant, main="quant")
+boxplot(cv$res$rmse, ylab="in MW", main="rmse"); boxplot(cv$res$pb, main="pb")
+
+med_pb_idx = which.median(cv$res$pb)
+res_med_pb = as.numeric(cv$res$val[med_pb_idx,])
+
+par(mfrow=c(1, 1))
+qqnorm(res_med_pb); qqline(res_med_pb)
+hist(res_med_pb, breaks = 50)
+plot(res_med_pb, type="l")
 
 ########################################
 ##### Quantile regression
 ########################################
-library("quantreg")
 
-mod5.rq <- rq(eq5, data = Data0[sel_c, ], tau = 0.95)
-summary(mod5.rq)
+mod.rq <- rq(eq, data = Data0[sel_a,])
+summary(mod.rq)
 
-mod5.rq.forecast <- predict(mod5.rq, newdata = Data0[sel_b, ])
-pb_rq <- pinball_loss(y = Data0$Net_demand[sel_b], mod5.rq.forecast, quant = 0.95, output.vect = FALSE)
+cv = time_cv(rq, eq, Data0, trainset_size, testset_size, nb_eval, type = "rolling", is.rq = T, tau = .95)
 
-mod5.rq.pred <- predict(mod5.rq, newdata = Data1)
-
-submit <- read_delim(file = "Data/sample_submission.csv", delim = ",")
-submit$Net_demand <- mod5.rq.pred
-write.table(submit, file = "Data/submission_rq.csv", quote = F, sep = ",", dec = ".", row.names = F)
-
-
-##############
-############
-
-par(mfrow=c(3, 1))
-plot(Data0$Date, Data0$Nebulosity, type = 'l')
-plot(Data0$Date, Data0$Nebulosity_weighted, type = 'l', col="red")
-plot(Data0$Date, Data0$Nebulosity_transformed, type = 'l', col="darkred")
-
-#############
 par(mfrow=c(1, 1))
+boxplot(cv$res$pb, ylab="in MW", main="pb")
 
-res = Data0$Net_demand[sel_c]-mod5.forecast
-plot(Data0$Nebulosity[sel_c], Data0$Net_demand[sel_c]-mod5.forecast)
+create_submission(rq, eq, tau = 0.95)
 
-plot(Data0$Nebulosity[sel_c], Data0$Solar_power[sel_c])
+########################################
+##### GAMs
+########################################
 
-plot(Data0$toy, Data0$Solar_power)
-
-
-plot(Data0$Wind_weighted, Data0$Wind_power)
-plot(Data0$Wind_power.7, Data0$Wind_power)
-plot(Data0$, Data0$Wind_power)
+eq <- Net_demand ~ s(as.numeric(Date),k=3, bs='cr') + s(toy,k=30, bs='cc') +
+  WeekDays + BH +
+  s(Net_demand.1, bs='cr') +  s(Net_demand.7, bs='cr') +
+  s(Load.1, bs='cr')+ s(Load.7, bs='cr') +
+  s(Temp,k=10, bs='cr') + s(Temp_s99,k=10, bs='cr') + 
+  s(Wind) + te(as.numeric(Date), Nebulosity, k=c(4,10))
   
-################################## analyse de la demande nette
 
-############################################ trend
-boxplot(Net_demand ~ BH, Data0)
+mod.gam <- gam(eq,  data=Data0[sel_a,])
+summary(mod.gam)
 
-plot(head(Data0$Net_demand.7), head(Data0$Net_demand))
-plot(Data0$Date, Data0$Temp, type = "l", xlim = range(Data0$Date, Data1$Date))
-lines(Data0$Date, Data0$Temp_s95, col="blue")
-start = as.numeric(unlist((str_split(date(Data0$Date[1]), "-"))))
-y <- ts(Data0$Net_demand, start = start, frequency = 365)
+nb_eval = 20
+trainset_size = nrow(Data0) - nrow(Data1) - (nb_eval - 1)
+testset_size = nrow(Data1)
 
-autoplot(y)
+cv3 = time_cv(gam, eq, Data0, trainset_size, testset_size, nb_eval, type = "rolling")
 
-autoplot(diff(diff(diff(y, lag = 365), lag = 7)))
-fourier(y, K=5)
-acf(diff(y))
-fit <- tslm(y ~ trend + season)
-fit$coefficients
-plot(c(Data0$Date, Data1$Date), forecast(fit, h=length(Data1)))
-fit <- tslm(y ~ trend + season)
-plot(forecast(fit, h=20))
-trend <- lm(Net_demand ~ Time, data = Data0)
-abline(mod0$coefficients, col="blue")
+cv = cv3
 
-Data0$Net_demand_detrended = Data0$Net_demand - trend$fitted.values
-plot(Data0$Date, Data0$Net_demand_detrended, type = "l", xlim = range(Data0$Date, Data1$Date))
+par(mfrow=c(2, 2))
+boxplot(cv$res$mean, ylab="in MW", main="mean"); boxplot(cv$res$quant, main="quant")
+boxplot(cv$res$rmse, ylab="in MW", main="rmse"); boxplot(cv$res$pb, main="pb")
 
-fft_out <- fft(Data0$Net_demand_detrended)
-spectre = Mod(fft_out[2 : (length(fft_out)/2 + 1)])
-barplot(spectre)
+med_pb_idx = which.median(cv$res$pb)
+res_med_pb = as.numeric(cv$res$val[med_pb_idx,])
 
-spectre_sorted = sort(spectre, decreasing = TRUE)
-cumsum(spectre_sorted)[400] / sum(spectre_sorted) * 100
+par(mfrow=c(1, 1))
+qqnorm(res_med_pb); qqline(res_med_pb)
+hist(res_med_pb, breaks = 50)
+plot(res_med_pb, type="l")
+
+######### Additional features
+eq <- Net_demand ~ s(as.numeric(Date), k=3, bs='cr') + s(toy,k=30, bs='cc') +
+  WeekDays + BH + BH_before + Holiday +
+  s(Net_demand.1, bs='cr') + s(Net_demand.7, k=10, bs='cr') + 
+  s(Load.1, bs='cr')+ s(Load.7, bs='cr') +
+  s(Wind_power.1, k=5, bs="cr") + s(Solar_power.1, bs='cr') +
+  s(Temp,k=10, bs='cr') + s(Temp_s99,k=10, bs='cr') +
+  s(Wind, bs='cr') + te(as.numeric(Date), Nebulosity, k=c(4,10)) +
+  s(StringencyIndex_Average, bs="cr")
+
+mod.gam <- gam(eq,  data=Data0[sel_a,])
+summary(mod.gam)
+
+cv4 = time_cv(gam, eq, Data0, trainset_size, testset_size, nb_eval, type = "rolling")
+
+cv = cv4
+
+par(mfrow=c(2, 2))
+boxplot(cv$res$mean, ylab="in MW", main="mean"); boxplot(cv$res$quant, main="quant")
+boxplot(cv$res$rmse, ylab="in MW", main="rmse"); boxplot(cv$res$pb, main="pb")
+
+med_pb_idx = which.median(cv$res$pb)
+res_med_pb = as.numeric(cv$res$val[med_pb_idx,])
+
+par(mfrow=c(1, 1))
+qqnorm(res_med_pb); qqline(res_med_pb)
+hist(res_med_pb, breaks = 50)
+plot(res_med_pb, type="l")
+
+create_submission(gam, eq, quant = min(cv$res$quant))
+
+########################################
+##### ARIMA
+########################################
+block_res = lapply(block_list, function(idx_test) train_eval(gam, eq, Data0[-idx_test,], Data0[idx_test,])$res) %>% unlist()
+block_res.ts <- ts(block_res, frequency=7)
+
+mod.res.arima <- auto.arima(block_res.ts,max.p=3,max.q=4, max.P=2, max.Q=2, trace=T,ic="aic", method="CSS")
+#Best model: ARIMA(3,0,4)(1,0,0)[7] with zero mean   
+#saveRDS(fit.arima.res, "Results/tif.arima.res.RDS")
+
+mod.gam.forecast = predict(mod.gam, newdata=Data0[sel_b,])
+ts_res_forecast <- ts(c(block_res.ts, Data0[sel_b,]$Net_demand-mod.gam.forecast),  frequency= 7)
+
+mod.res.arima <- Arima(ts_res_forecast, model=mod.res.arima)
+summary(mod.res.arima)
+
+rmse.old(fit.arima.res$residuals)
+
+mod.res.arima.forecast <- tail(mod.res.arima$fitted, nrow(Data0[sel_b,]))
+
+mod.gam_arima.forecast <- mod.gam.forecast + mod.res.arima.forecast
+
+rmse.old(Data0[sel_b,]$Net_demand-mod.gam.forecast)
+rmse.old(Data0[sel_b,]$Net_demand-mod.gam_arima.forecast)
+mape(Data0[sel_b,]$Net_demand, mod.gam_arima.forecast)
