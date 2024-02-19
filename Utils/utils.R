@@ -28,7 +28,7 @@ time_cv <- function(mod_cls, eq, data, trainset_size, testset_size=1, nb_eval=1,
   try(if(nb_eval < 1 | excess_data_size < (nb_eval - 1)) 
     stop("Wrong combination of trainset_size, testset_size and nb_eval!"))
   
-  maxstep = ifelse(nb_eval == 1, 1, round(excess_data_size / (nb_eval - 1)))
+  maxstep = ifelse(nb_eval == 1, 1, floor(excess_data_size / (nb_eval - 1)))
   step = ifelse(step == 0, maxstep, step)
   try(if(step < 1 | step > maxstep) 
     stop("Argument step provided is not valid!"))
@@ -40,9 +40,9 @@ time_cv <- function(mod_cls, eq, data, trainset_size, testset_size=1, nb_eval=1,
   if(!is.rq) cv$res = list(val = cv$pred)
   
   for(i in 1:nb_eval) {
-    cv$idx$start[i] = switch(type, "rolling"=1, "window"=1 + (i-1) * step)
-    cv$idx$mid[i] = trainset_size + (i-1)*step
-    cv$idx$end[i] = cv$idx$mid[i] + testset_size
+    cv$idx$start[i] = switch(type, "rolling"=1, "window"=1 + (i-1)*step)
+    cv$idx$mid[i] = (1 + (i-1)*step) + trainset_size - 1 
+    cv$idx$end[i] = (cv$idx$mid[i] + 1) + testset_size - 1
     
     test_data = data[(cv$idx$mid[i]+1):cv$idx$end[i],]
     

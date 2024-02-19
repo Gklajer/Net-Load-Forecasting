@@ -101,7 +101,7 @@ eq <- Net_demand ~ WeekDays + Temp + Temp_trunc1 + Temp_trunc2 + Fourier10
 mod.lm <- lm(eq, data = Data0[sel_a,])
 summary(mod.lm)
 
-nb_eval = 100
+nb_eval = 50
 trainset_size = nrow(Data0) - nrow(Data1) - (nb_eval - 1)
 testset_size = nrow(Data1)
 
@@ -145,6 +145,34 @@ par(mfrow=c(1, 1))
 qqnorm(res_med_pb); qqline(res_med_pb)
 hist(res_med_pb, breaks = 50)
 plot(res_med_pb, type="l")
+
+
+########################################
+##### Trainset size calibration
+########################################
+
+nb_eval = 50
+testset_size = nrow(Data1)
+max_window = nrow(Data0) - testset_size - (nb_eval - 1)
+trainset_sizes = seq(200, max_window, length.out=40) %>% floor()
+f = Vectorize(function(trainset_size) time_cv(lm, eq, Data0, trainset_size, testset_size, nb_eval, type = "window")$res$rmse, "trainset_size")
+rmse_df = as.data.frame(f(trainset_sizes))
+colnames(rmse_df) <- trainset_sizes
+
+par(mfrow=c(1, 1))
+boxplot(rmse_df)
+boxplot(rmse_df[,1:31])
+boxplot(rmse_df[,1:15], ylim=range(1000, 2000))
+
+
+max_window = 1000
+trainset_sizes = seq(365, max_window, length.out=40) %>% floor()
+f = Vectorize(function(trainset_size) time_cv(lm, eq, Data0, trainset_size, testset_size, nb_eval, type = "window")$res$rmse, "trainset_size")
+rmse_df = as.data.frame(f(trainset_sizes))
+colnames(rmse_df) <- trainset_sizes
+
+par(mfrow=c(1, 1))
+boxplot(rmse_df, ylim=range(1000, 2000))
 
 ########################################
 ##### Quantile regression
@@ -197,18 +225,18 @@ plot(res_med_pb, type="l")
 
 ######### Additional features
 eq <- Net_demand ~ s(as.numeric(Date), k=3, bs='cr') + s(toy,k=30, bs='cc') +
-  WeekDays + BH + BH_before + Holiday +
+  WeekDays + BH + BH_before + Holiday + 
   s(Net_demand.1, bs='cr') + s(Net_demand.7, k=10, bs='cr') + 
   s(Load.1, bs='cr')+ s(Load.7, bs='cr') +
   s(Wind_power.1, k=5, bs="cr") + s(Solar_power.1, bs='cr') +
   s(Temp,k=10, bs='cr') + s(Temp_s99,k=10, bs='cr') +
-  s(Wind, bs='cr') + te(as.numeric(Date), Nebulosity, k=c(4,10)) +
-  s(StringencyIndex_Average, bs="cr")
+  s(Wind, bs='cr') + te(as.numeric(Date), Nebulosity, k=c(4,10))
 
 mod.gam <- gam(eq,  data=Data0[sel_a,])
 summary(mod.gam)
 
-cv4 = time_cv(gam, eq, Data0, trainset_size, testset_size, nb_eval, type = "rolling")
+trainset_size = 1500
+cv4 = time_cv(gam, eq, Data0, trainset_size, testset_size, nb_eval, type = "window")
 
 cv = cv4
 
@@ -224,11 +252,12 @@ qqnorm(res_med_pb); qqline(res_med_pb)
 hist(res_med_pb, breaks = 50)
 plot(res_med_pb, type="l")
 
-create_submission(gam, eq, quant = min(cv$res$quant))
+create_submission(gam, eq, train_data = tail(Data0, trainset_size), quant = min(cv$res$quant))
 
 ########################################
 ##### ARIMA
 ########################################
+
 block_res = lapply(block_list, function(idx_test) train_eval(gam, eq, Data0[-idx_test,], Data0[idx_test,])$res) %>% unlist()
 block_res.ts <- ts(block_res, frequency=7)
 
@@ -242,11 +271,11 @@ ts_res_forecast <- ts(c(block_res.ts, Data0[sel_b,]$Net_demand-mod.gam.forecast)
 mod.res.arima <- Arima(ts_res_forecast, model=mod.res.arima)
 summary(mod.res.arima)
 
-rmse.old(fit.arima.res$residuals)
+rmse.old(mod.res.arima$residuals)
 
 mod.res.arima.forecast <- tail(mod.res.arima$fitted, nrow(Data0[sel_b,]))
 
-mod.gam_arima.forecast <- mod.gam.forecast + mod.res.arima.forecast
+mod.gam_arima.forecast <- mod.gam.forecast + mod.res.arima.forecast + 
 
 rmse.old(Data0[sel_b,]$Net_demand-mod.gam.forecast)
 rmse.old(Data0[sel_b,]$Net_demand-mod.gam_arima.forecast)
