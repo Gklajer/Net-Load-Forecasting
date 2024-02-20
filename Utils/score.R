@@ -20,9 +20,6 @@ bias <- function(y, yhat) {
   mean(y - yhat, na.rm = TRUE)
 }
 
-
-
-
 pinball_loss <- function(y, yhat_quant, quant, output.vect = FALSE) {
   yhat_quant <- as.matrix(yhat_quant)
   pinball_loss <- 0
