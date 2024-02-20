@@ -41,7 +41,7 @@ Data0$Temp_trunc2 <- pmax(Data0$Temp - 295, 0)
 Data1$Temp_trunc1 <- pmax(Data1$Temp - 285, 0)
 Data1$Temp_trunc2 <- pmax(Data1$Temp - 295, 0)
 
-#### Fourier features
+#### Fourier features ####
 w <- 2 * pi / (365)
 Nfourier <- 10
 
