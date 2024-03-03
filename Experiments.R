@@ -158,10 +158,11 @@ eq <- Net_demand ~ s(as.numeric(Date),k=3, bs='cr') + s(toy,k=30, bs='cc') +
 ######### Additional features
 
 eq <- Net_demand ~ s(Time, k=3, bs='cr') + s(toy,k=30, bs='cc') +
-  WeekDays + BH_Holiday + Holiday + StringencyIndex_Average +
+  WeekDays * BH_before  + BH_Holiday + Holiday + 
+  StringencyIndex_Average * EconomicSupportIndex +
   s(Load.1, by=WeekDays, bs='cr') + s(Load.7, bs='cr') +
   s(Wind_power.1, k=5, bs="cr") + s(Solar_power.1, k=5, bs='cr') +
-  ti(Wind_weighted, k=7, bs='cr') + s(Nebulosity, by=Year, bs="cr") +
+  ti(Wind_weighted, k=10, bs='cr') + s(Nebulosity, by=Year, bs="cr") +
   ti(Temp, k=7, bs='cr') + ti(Temp, Temp_s99_max, bs='cr') + 
   ti(Wind_weighted, Temp, k=c(3,7), bs="cr")
   
@@ -169,20 +170,20 @@ mod.gam <- gam(eq,  data=Data0[sel_a,])
 summary(mod.gam)
 ## gam.check(mod.gam)
 
-k = 5
+k = 6
 testset_size = nrow(Data1)
 trainset_size = nrow(Data0) - k * testset_size
 cv2 = time_cv(gam, eq, Data0, trainset_size, testset_size, type = "window")
 
 cv = cv2
 
-par(mfrow=c(2, 2))
+par(mfrow=c(2, 2), mar=c(1, 2, 1, 1))
 boxplot(cv$res$mean, ylab="in MW", main="mean"); boxplot(cv$res$quant, main="quant")
 boxplot(cv$res$rmse, ylab="in MW", main="rmse"); boxplot(cv$res$pb, main="pb")
 
 res = c(t(cv$res$val))
 
-par(mfrow=c(1, 1))
+par(mfrow=c(1, 1), , mar=c(2, 2, 2, 2))
 qqnorm(res); qqline(res)
 hist(res, breaks = 50)
 plot(res, type="l")
