@@ -50,8 +50,7 @@ rmse.forecast <- list()
 rmse.oob <- list()
 
 #ntree
-ntest<-seq(1,1000,by=100)
-rfTest<-lapply(ntest, function(n){ranger(equation, num.trees = n, data=Data0[sel_a,])})
+ 
 rfTest.fitted<-lapply(rfTest, predict, data=Data0[sel_a,])
 rfTest.forecast<-lapply(rfTest, predict, data=Data0[sel_b,])
 
