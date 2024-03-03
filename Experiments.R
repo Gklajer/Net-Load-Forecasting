@@ -158,10 +158,11 @@ eq <- Net_demand ~ s(as.numeric(Date),k=3, bs='cr') + s(toy,k=30, bs='cc') +
 ######### Additional features
 
 eq <- Net_demand ~ s(Time, k=3, bs='cr') + s(toy,k=30, bs='cc') +
-  WeekDays + BH_Holiday + Holiday + StringencyIndex_Average +
+  WeekDays * BH_before  + BH_Holiday + Holiday + 
+  StringencyIndex_Average * EconomicSupportIndex +
   s(Load.1, by=WeekDays, bs='cr') + s(Load.7, bs='cr') +
   s(Wind_power.1, k=5, bs="cr") + s(Solar_power.1, k=5, bs='cr') +
-  ti(Wind_weighted, k=7, bs='cr') + s(Nebulosity, by=Year, bs="cr") +
+  ti(Wind_weighted, k=10, bs='cr') + s(Nebulosity, by=Year, bs="cr") +
   ti(Temp, k=7, bs='cr') + ti(Temp, Temp_s99_max, bs='cr') + 
   ti(Wind_weighted, Temp, k=c(3,7), bs="cr")
   
@@ -169,7 +170,7 @@ mod.gam <- gam(eq,  data=Data0[sel_a,])
 summary(mod.gam)
 ## gam.check(mod.gam)
 
-k = 5
+k = 6
 testset_size = nrow(Data1)
 trainset_size = nrow(Data0) - k * testset_size
 cv2 = time_cv(gam, eq, Data0, trainset_size, testset_size, type = "window")
