@@ -43,6 +43,13 @@ Data0$Temp_trunc2 <- pmax(Data0$Temp - 295, 0)
 Data1$Temp_trunc1 <- pmax(Data1$Temp - 285, 0)
 Data1$Temp_trunc2 <- pmax(Data1$Temp - 295, 0)
 
+
+### Temperature ressentie
+
+Data0$Temp_res_siple <- (33 + (Data0$Temp - 273.15 - 33)*(0.474 + 0.454*sqrt(Data0$Wind)) - 0.0454*Data0$Wind)+273.15 
+
+Data0$Temp_res_windchill <- (13.12 + 0.6215*(Data0$Temp - 273.15) - 11.37*(Data0$Wind*3.6)**0.16 + 0.3965*(Data0$Temp - 273.15)*(Data0$Wind*3.6)**0.16) + 273.15
+
 #### Fourier features
 w <- 2 * pi / (365)
 Nfourier <- 10
