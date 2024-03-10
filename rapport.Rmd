@@ -69,10 +69,7 @@ In this project, we tested different models and techniques for day-ahead forecas
 This project was developed as part of a private Kaggle competition. One of the complexities of the competition lay in the choice of the evaluation metric by the organizer. The objective was to achieve the best score on a private dataset with respect to the pinball loss for quantile 0.95, described below.
 
 $$
-l_{\alpha}(y-q) = \alpha |y-q|^{+} (1-\alpha )|y-q|^{-} 
-
-$$ where $$
-|x|^{+} = max(x,0),\quad |x|^{-} = max(-x,0)
+l_{\alpha}(y-q) = \alpha |y-q|^{+} (1-\alpha )|y-q|^{-}\quad \text{where} \quad |x|^{+} = max(x,0),\quad |x|^{-} = max(-x,0)
 $$
 
 It is easily shown that the solution $q^{*}$ of $$ 
@@ -81,7 +78,7 @@ $$ verifies $$
 F(q*) = \alpha
 $$
 
-So in order to minimize the loss we need to effectively estimate the 0.95 quantile. 
+So in order to minimize the loss we need to effectively estimate the 0.95 quantile.
 
 ## Summary
 
@@ -89,7 +86,7 @@ After performing some basic but necessary transformations to our dataset, we beg
 
 ## Data gathering
 
-(Covid)
+The COVID period introduced once again a non stationary effect we had to account for. We gathered data regarding the evolution of the crisis in France from the following repository [Oxford Covid-19 Government Response Tracker (OxCGRT)](https://github.com/OxCGRT/covid-policy-dataset?tab=readme-ov-file). Specifically we collected data from the `OxCGRT_simplified_v1.csv` file. We performed some filtering on the file and we then added our new covariables to our dataset.
 
 ## Feature engineering
 
@@ -97,17 +94,13 @@ Before (Lo básico)
 
 A more advanced transformation that we carried out consisted of adjusting the nebulosity variable. We can observe that there is a clear regime shift between 2016 and 2017. This is because before 2017, it was human operators who were scoring the nebulosity level based on observations, and then, we switched to a system that determined the level automatically. We tried to transform the nebulosity data from the first regime to have the same mean and variance as the second regime, but eventually abandoned the idea. (include plots)
 
-In the context of energy consumption, a variable that can theoretically be even more significant than temperature is the perceived temperature. This is why we tried to construct this variable from our dataset. We had two candidate functions, the Siple formula and the standard wind chill formula from Environment Canada:
-$$
-\begin{equation*}
+In the context of energy consumption, a variable that can theoretically be even more significant than temperature is the perceived temperature. This is why we tried to construct this variable from our dataset. We had two candidate functions, the Siple formula and the standard wind chill formula from Environment Canada: \$\$ \begin{equation*}
   \begin{aligned}
           T_{Siple}^{C^{\circ}}} &= 3 + (T\_{air}^{C^{\circ}}- 33)\*(0.474 + 0.454 \sqrt V^{Km/h}-0.0454V^{Km/h})\\ 
           T_{WChill}^{C^{\circ}}} &= 13.2 + 0.6215T_{air}^{C^{\circ}} -  11.37V^{Km/h}+0.3965T\_{air}^{C^{\circ}}}V{Km/h}  \\
            
   \end{aligned}
-\end{equation*}
-$$
-
+\end{equation*} \$\$
 
 ```{r windchill}
 par(mfrow=c(1,2))
@@ -116,7 +109,6 @@ plot(Data0$Temp, Data0$Temp_res_windchill)
 ```
 
 However, since these formulas are nonlinear in temperature and wind speed; it is not sufficient to know the average temperature and weather speed to calculate the average perceived temperature. In addition, these formulas are not only quite subjective, but are mostly used to estimate wind chill temperatures in cold climates. There are more accurate formulas that take into account humidity, but we believe that collecting all the necessary data would be an arduous task, probably with little return on investment.
-
 
 ## Preliminary models
 
