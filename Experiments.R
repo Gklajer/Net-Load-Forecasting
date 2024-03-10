@@ -43,7 +43,7 @@ Data0$Temp_trunc2 <- pmax(Data0$Temp - 295, 0)
 Data1$Temp_trunc1 <- pmax(Data1$Temp - 285, 0)
 Data1$Temp_trunc2 <- pmax(Data1$Temp - 295, 0)
 
-#### Fourier features ####
+#### Fourier features
 w <- 2 * pi / (365)
 Nfourier <- 10
 
@@ -177,13 +177,13 @@ cv2 = time_cv(gam, eq, Data0, trainset_size, testset_size, type = "window")
 
 cv = cv2
 
-par(mfrow=c(2, 2))
+par(mfrow=c(2, 2), mar=c(1, 2, 1, 1))
 boxplot(cv$res$mean, ylab="in MW", main="mean"); boxplot(cv$res$quant, main="quant")
 boxplot(cv$res$rmse, ylab="in MW", main="rmse"); boxplot(cv$res$pb, main="pb")
 
 res = c(t(cv$res$val))
 
-par(mfrow=c(1, 1))
+par(mfrow=c(1, 1), , mar=c(2, 2, 2, 2))
 qqnorm(res); qqline(res)
 hist(res, breaks = 50)
 plot(res, type="l")
@@ -238,7 +238,9 @@ mod.gam.arima.1 = Arima(Net_demand.1.ts, xreg=mod.gam.pred.1.ts, model=mod.gam.a
 checkresiduals(mod.gam.arima.1)
 
 mod.gam.arima.forecast.1 = tail(mod.gam.arima.1$fitted, testset_size)
-quant.1 = tail(sliding_quantile(mod.gam.arima.1$residuals, window_size=testset_size, .97), testset_size)
+quant = tail(sliding_quantile(mod.gam.arima.1$residuals, window_size=testset_size, .97), testset_size+1)
+quant.1 = lag(quant)[-1]
+quant = quant[-1]
 
 pinball_loss(Data1$Net_demand.1[-1], (mod.gam.arima.forecast.1 + quant.1)[-1], .95)
 
@@ -250,7 +252,6 @@ lines(Data1$Date, mod.gam.arima.forecast.1, col="red")
 mod.gam.arima.forecast = lead(mod.gam.arima.forecast.1, 
                               default = forecast(mod.gam.arima.1, 
                                                  xreg = tail(mod.gam.pred.ts, 1))$mean)
-quant = lead(quant.1, default = tail(quant.1, 1))
 
 submit <- read_delim(file = "Data/sample_submission.csv", delim = ",")
 submit$Net_demand <- mod.gam.arima.forecast + quant
