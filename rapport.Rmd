@@ -84,7 +84,7 @@ Where $F$ is the cdf. So in order to minimize the loss we need to effectively es
 
 After performing some basic but necessary transformations to our dataset, we began by focusing our efforts on testing different models, collecting additional data and performing some other, more advanced transformations to our dataset. Our first breakthrough in performance came when we started testing GAM models. From that point on, we mainly finetuned this model. To do this, we focused on finding the most significant covariate effects, on adding carefully chosen quantiles to the fit model, and on further improving the model by applying ARIMA correction.
 
-One recurrent idea through our development process consisted on performing sliding window cross-validation to train our models. 
+One recurrent idea through our development process consisted on performing sliding window cross-validation to train our models.
 
 ## Data Gathering
 
@@ -92,7 +92,7 @@ The COVID period introduced once again a non stationary effect we had to account
 
 ## Feature Engineering
 
-We started by performing some basic but fundamental variable transformations: we coded into factor the `WeekDays` variable, and we also created a new numerical variable, `Time` that encodes `Date` into a numerical format. 
+We started by performing some basic but fundamental variable transformations: we coded into factor the `WeekDays` variable, and we also created a new numerical variable, `Time` that encodes `Date` into a numerical format.
 
 A more advanced transformation that we carried out consisted of adjusting the nebulosity variable. We can observe that there is a clear regime shift between 2016 and 2017. This is because before 2017, it was human operators who were scoring the nebulosity level based on observations, and then, we switched to a system that determined the level automatically. We tried to transform the nebulosity data from the first regime to have the same mean and variance as the second regime, but eventually abandoned the idea. (include plots)
 
@@ -114,6 +114,7 @@ However, since these formulas are nonlinear in temperature and wind speed; it is
 
 ## Time Cross-Validation
 
+We developped a time-series cross validation function that better recreates the forecasting scenario, in which training data has temporal precedence over test data. In addition, for practical considerations, the function returns predictions, residuals, RMSE and pinball loss scores as well as means and quantiles of the residuals on the different predictions over the testsets. It should be pointed out that we used a hybrid between the rolling and sliding window methods: the test sets were contiguous and did not overlap. We made extensive use of this function to evaluate the performance of the many models we compared, as it allowed us to have a quick but comprehensive overview of model performance with boxplots of various residual statistics.
 
 ## Preliminary Models
 
@@ -133,7 +134,13 @@ Not long after we started fitting models, we realized GAMs were going to perform
 
 ### Random Forest
 
-One model that we briefly explored before the end of the competition was the Random Forest model. We had a few ideas in mind: ·Fitting Random Forests on the residuals on our most performing model, to further improve performance. ·Expert's aggregation using our finetuned GAM and a finetuned Random Forest.
+One model that we briefly explored before the end of the competition was the Random Forest model.
+
+We had a few ideas in mind:
+
+-   Fitting Random Forests on the residuals on our most performing model, to further improve performance.
+
+-   Expert's aggregation using our finetuned GAM and a finetuned Random Forest.
 
 The first idea arose after analyzing the residuals of our model. If clear periodicities can be observed in the residuals, the performance of the model can probably be improved; since a sufficiently advanced model should leave white noise as a residual. We think that fitting a Random Forest model to the residuals could be a great idea, since our model is mainly focused on capturing bivariate effects between covariates, and a sufficiently deep tree model can capture more complex interactions.
 
