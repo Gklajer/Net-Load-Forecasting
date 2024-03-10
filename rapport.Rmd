@@ -1,0 +1,153 @@
+---
+title: "Rapport"
+author: "Gary Klajer, Pablo Hueso"
+date: "`r Sys.Date()`"
+header-includes:
+  - \usepackage{amsmath}
+  - \usepackage{amssymb}
+  - \usepackage{bbm}
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r path}
+setwd("C:/Users/PabloHueso/Documents/GitHub/Net-Load-Forecasting")
+```
+
+```{r import library, include = FALSE}
+rm(list=objects())
+graphics.off()
+
+library(readr)
+library(lubridate)
+library(forecast)
+library(magrittr)
+library(mgcv)
+library(quantreg)
+library(ranger)
+library(slider)
+library(tidyverse)
+library(yarrr)
+```
+
+```{r import data, include=FALSE}
+Data0 <- read_delim("Data/train.csv", delim = ",")
+Data1 <- read_delim("Data/test.csv", delim = ",")
+
+DataCOVID0 <- read_delim("Data/OxCGRT_simplified_fr/Data0-COVID_Indicators.csv", delim = ",")
+DataCOVID1 <- read_delim("Data/OxCGRT_simplified_fr/Data1-COVID_Indicators.csv", delim = ",")
+
+Data0 <- merge(Data0, DataCOVID0, by="Date")
+Data1 <- merge(Data1, DataCOVID1, by="Date")
+
+Data0$Time <- as.numeric(Data0$Date)
+Data1$Time <- as.numeric(Data1$Date)
+
+Data0$WeekDays <- as.factor(Data0$WeekDays)
+Data1$WeekDays <- as.factor(Data1$WeekDays)
+
+Data0$Temp_res_siple <- (33 + (Data0$Temp - 273.15 - 33)*(0.474 + 0.454*sqrt(Data0$Wind)) - 0.0454*Data0$Wind)+273.15 
+
+Data0$Temp_res_windchill <- (13.12 + 0.6215*(Data0$Temp - 273.15) - 11.37*(Data0$Wind*3.6)**0.16 + 0.3965*(Data0$Temp - 273.15)*(Data0$Wind*3.6)**0.16) + 273.15
+
+sel_a <- which(Data0$Year <= 2021)
+sel_b <- -sel_a
+
+```
+
+## Introduction
+
+Electric Load Forecasting is the process of predicting the future electricity demand within a specific geographical area over a certain period of time, typically ranging from hours to years. This forecasting involves analyzing historical electricity consumption data, considering various influencing factors such as weather patterns, economic indicators, population growth, and technological advancements, to project future electricity usage accurately.
+
+In this project, we tested different models and techniques for day-ahead forecasting of total net demand in France during France's sobriety period following winter 2022. The challenge of this project stemmed from the constraint of having access to data only up to August 2022 to train our models. No historical data could replicate the special circumstances of France's energy sobriety plan following September 2020, so we needed to apply non-stationary processes forecasting techniques, such as ARIMA.
+
+## Preliminaries
+
+This project was developed as part of a private Kaggle competition. One of the complexities of the competition lay in the choice of the evaluation metric by the organizer. The objective was to achieve the best score on a private dataset with respect to the pinball loss for quantile 0.95, described below.
+
+$$
+l_{\alpha}(y-q) = \alpha |y-q|^{+} (1-\alpha )|y-q|^{-} 
+
+$$ where $$
+|x|^{+} = max(x,0),\quad |x|^{-} = max(-x,0)
+$$
+
+It is easily shown that the solution $q^{*}$ of $$ 
+argmin_q(\mathbb{E}[l_{\alpha}(y-q)])
+$$ verifies $$
+F(q*) = \alpha
+$$
+
+So in order to minimize the loss we need to effectively estimate the 0.95 quantile. 
+
+## Summary
+
+After performing some basic but necessary transformations to our dataset, we began by focusing our efforts on testing different models, collecting additional data and performing some other, more advanced transformations to our dataset. Our first breakthrough in performance came when we started testing GAM models. From that point on we focused on finetuning this model, focusing on discovering the most significant covariate effects, adding carefully chosen quantiles to the fit model, and further improving the model by applying ARIMA correction.
+
+## Data gathering
+
+(Covid)
+
+## Feature engineering
+
+Before (Lo básico)
+
+A more advanced transformation that we carried out consisted of adjusting the nebulosity variable. We can observe that there is a clear regime shift between 2016 and 2017. This is because before 2017, it was human operators who were scoring the nebulosity level based on observations, and then, we switched to a system that determined the level automatically. We tried to transform the nebulosity data from the first regime to have the same mean and variance as the second regime, but eventually abandoned the idea. (include plots)
+
+In the context of energy consumption, a variable that can theoretically be even more significant than temperature is the perceived temperature. This is why we tried to construct this variable from our dataset. We had two candidate functions, the Siple formula and the standard wind chill formula from Environment Canada:
+$$
+\begin{equation*}
+  \begin{aligned}
+          T_{Siple}^{C^{\circ}}} &= 3 + (T\_{air}^{C^{\circ}}- 33)\*(0.474 + 0.454 \sqrt V^{Km/h}-0.0454V^{Km/h})\\ 
+          T_{WChill}^{C^{\circ}}} &= 13.2 + 0.6215T_{air}^{C^{\circ}} -  11.37V^{Km/h}+0.3965T\_{air}^{C^{\circ}}}V{Km/h}  \\
+           
+  \end{aligned}
+\end{equation*}
+$$
+
+
+```{r windchill}
+par(mfrow=c(1,2))
+plot(Data0$Temp, Data0$Temp_res_siple)
+plot(Data0$Temp, Data0$Temp_res_windchill)
+```
+
+However, since these formulas are nonlinear in temperature and wind speed; it is not sufficient to know the average temperature and weather speed to calculate the average perceived temperature. In addition, these formulas are not only quite subjective, but are mostly used to estimate wind chill temperatures in cold climates. There are more accurate formulas that take into account humidity, but we believe that collecting all the necessary data would be an arduous task, probably with little return on investment.
+
+
+## Preliminary models
+
+Before we started to achieve very good results using GAM models, there were other models that we considered at first. In this section we explain the approach to our work and the evolution of our ideas over time.
+
+### Linear Regression
+
+Naturally, one of the first models we used was linear regression; using this classical model as a benchmark enabled us to establish a solid framework for comparison, and to contextualize the performance of other models against an established standard. However, the use of this model presented us with two drawbacks: the first and most obvious is that we soon discovered many nonlinear effects between our target variable and our explanatory variables, and the second, that linear regression can be a good estimator of the mean of the target variable, but in this competition, our loss function was a pinball loss of quantile 0.95, so we needed to adjust for that.
+
+### Quantile Regression
+
+One approach to solving the second forementioned problem is to simply perform quantile regression intead of classic linear regression, but we found more success fitting other models and adjusting for the loss discrepancy by adding quantiles to the fitted models, so we quicky abandoned this approach.
+
+### GAM
+
+### Random Forest
+
+One model that we briefly explored before the end of the competition was the Random Forest model. We had a few ideas in mind: ·Fitting Random Forests on the residuals on our most performing model, to further improve performance. ·Expert's aggregation using our finetuned GAM and a finetuned Random Forest.
+
+The first idea arose after analyzing the residuals of our model. If clear periodicities can be observed in the residuals, the performance of the model can probably be improved; since a sufficiently advanced model should leave white noise as a residual. We think that fitting a Random Forest model to the residuals could be a great idea, since our model is mainly focused on capturing bivariate effects between covariates, and a sufficiently deep tree model can capture more complex interactions.
+
+The second idea was to fit a model independent of our GAM, and then combine these models through expert aggregation. The Random Forest is a model conceptually very far from a GAM, a desirable property when aggregating different predictions through this technique.
+
+Unfortunately, we were unable to implement these ideas due to lack of time.
+
+## Final model
+
+### Covariate effect analysis
+
+### Arima
+
+(Hablar del modelo)
+
+## Results and Discussion
