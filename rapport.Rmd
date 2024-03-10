@@ -86,11 +86,11 @@ After performing some basic but necessary transformations to our dataset, we beg
 
 One recurrent idea through our development process consisted on performing sliding window cross-validation to train our models. 
 
-## Data gathering
+## Data Gathering
 
 The COVID period introduced once again a non stationary effect we had to account for. We gathered data regarding the evolution of the crisis in France from the following repository [Oxford Covid-19 Government Response Tracker (OxCGRT)](https://github.com/OxCGRT/covid-policy-dataset?tab=readme-ov-file). Specifically we collected data from the `OxCGRT_simplified_v1.csv` file. We performed some filtering on the file and we then added our new covariables to our dataset.
 
-## Feature engineering
+## Feature Engineering
 
 We started by performing some basic but fundamental variable transformations: we coded into factor the `WeekDays` variable, and we also created a new numerical variable, `Time` that encodes `Date` into a numerical format. 
 
@@ -115,7 +115,7 @@ However, since these formulas are nonlinear in temperature and wind speed; it is
 ## Time Cross-Validation
 
 
-## Preliminary models
+## Preliminary Models
 
 Before we started to achieve very good results using GAM models, there were other models that we considered at first. In this section we explain the approach to our work and the evolution of our ideas over time.
 
@@ -125,9 +125,11 @@ Naturally, one of the first models we used was linear regression; using this cla
 
 ### Quantile Regression
 
-One approach to solving the second forementioned problem is to simply perform quantile regression intead of classic linear regression, but we found more success fitting other models and adjusting for the loss discrepancy by adding quantiles to the fitted models, so we quicky abandoned this approach.
+One approach to solving the second forementioned problem is to simply perform quantile regression intead of classic linear regression, but we found more success fitting other models and adjusting for the loss discrepancy by adding quantiles (explained in the Final Model section) to the fitted models, so we quickly abandoned this approach.
 
 ### GAM
+
+Not long after we started fitting models, we realized GAMs were going to perform better and provide better estimations than the previous models we had tried. The GAM model alongside with the quantile correction were able to address the two problems we were facing: as we mentioned, quantile correction proved to be a great tool to adjust for the 0.95 quantile, and the nature of GAMs made it easy for us to include nonlinear effects in the model. We describe in more detail how our GAM model evolved over time in the Final Model section.
 
 ### Random Forest
 
@@ -139,12 +141,22 @@ The second idea was to fit a model independent of our GAM, and then combine thes
 
 Unfortunately, we were unable to implement these ideas due to lack of time.
 
-## Final model
+## Final Model
 
-### Covariate effect analysis
+### Quantile correction
 
-### Arima
+### Covariate Effect Analysis
 
-(Hablar del modelo)
+Much of our progress was based on finding interesting bivariate effects. Many of these effects were found by reasoning, some others were found by different exploratory techniques, and a few findings were serendipitous.
+
+
+
+### ARIMA
+
+The second breakthrough + what is arima + ARIMA formal definition.
 
 ## Results and Discussion
+
+To summarize our findings, we discovered that (...) is important for forecasting and ARIMA is a great tool (...)
+
+Although we achieved (...) score, placing #1 in the competition, we know that our model is not perfect and has still a lot of room for improvement. We list some ideas we had to further improve our predictions that we h
