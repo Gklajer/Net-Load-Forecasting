@@ -105,7 +105,7 @@ $$
  \begin{equation*} \begin{aligned} T_{Simple}^{C^{\circ}} &= 3 + (T_{air}^{C^{\circ}} - 33) \cdot (0.474 + 0.454 \sqrt{V^{Km/h}} - 0.0454 V^{Km/h}) \\ T_{WindChill}^{C^{\circ}} &= 13.2 + 0.6215 T_{air}^{C^{\circ}} - 11.37 V^{Km/h} + 0.3965 T_{air}^{C^{\circ}} V^{Km/h} \end{aligned} \end{equation*}
 $$
 
-```{r windchill}
+```{r windchill, echo=FALSE}
 par(mfrow=c(1,2))
 plot(Data0$Temp, Data0$Temp_res_siple)
 plot(Data0$Temp, Data0$Temp_res_windchill)
@@ -131,7 +131,7 @@ One approach to solving the second forementioned problem is to simply perform qu
 
 ## GAM
 
-Not long after we started fitting models, we realized GAMs were going to perform better and provide better estimations than the previous models we had tried. The GAM model alongside with the quantile correction were able to address the two problems we were facing: as we mentioned, quantile correction proved to be a great tool to adjust for the 0.95 quantile, and the nature of GAMs made it easy for us to include nonlinear effects in the model. 
+Not long after we started fitting models, we realized GAMs were going to perform better and provide better estimations than the previous models we had tried. The GAM model alongside with the quantile correction were able to address the two problems we were facing: as we mentioned, quantile correction proved to be a great tool to adjust for the 0.95 quantile, and the nature of GAMs made it easy for us to include nonlinear effects in the model.
 
 ```{r}
 eq <- Net_demand ~ s(as.numeric(Date),k=3, bs='cr') + s(toy,k=30, bs='cc') +
@@ -171,28 +171,35 @@ eq <- Net_demand ~ s(Time, k=3, bs='cr') + s(toy,k=30, bs='cc') +
 
 ## Final Model
 
-### Quantile prediction
-
-For quantile prediction in the same manner that
-
 ### Covariate Effect Analysis
 
-Much of our progress was based on finding interesting bivariate effects. Many of these effects were found by reasoning, some others were found by different exploratory techniques, and a few findings were serendipitous. 
+Much of our progress was based on finding interesting bivariate effects. Many of these effects were found by reasoning, some others were found by different exploratory techniques, and a few findings were serendipitous.
 
 For example, `toy` has an interesting nonlinear relationship with `Solar.power` that we found when thinking about the daytime length variations with seasons: more daytime implies more solar power. Also, during winter, the angle of incidence of the sunlight with respect to the surface is smaller, so the less total light is received for that reason. These effects can be appreciated in the plot:
 
 (plot)
 
-Some other relationships were found 
-
-
+Some other relationships were found
 
 ### ARIMA
 
-The second breakthrough + what is arima + ARIMA formal definition.
+The second big breakthough in performance came when we started using ARIMA.
 
-ARIMA is an acronym for Auto Regressive Integrated Moving Average:
+-   We extracted initial GAM predictions on `Data0` with the time cross-validation function then modeled its residual (`Net_demand.ts - mod.gam.pred.ts`) using the `auto.arima` function. This captures the remaining temporal patterns in the data not fully explained by the GAM.
 
+-   The `xreg` argument incorporates the initial GAM predictions (`mod.gam.pred.ts`) as explanatory variables in the ARIMA model, allowing it to account for the systematic component.
+
+-   **Final Forecast:**
+
+    -   The ARIMA model is "refitted" on lagged response net demand with combined observations from `tail(Data0, nrow(Data1))`and `Data1` and lagged predictions for `xreg` argument. The quantile on the residuals is computed in a precise manner as described in next section.
+
+We can check below that the residuals conform to the Arima hypothesis, i.e. there is no longer any significant correlation and the distribution appears Gaussian.
+
+![](images/clipboard-2299422384.png)
+
+### Quantile prediction
+
+For quantile prediction, with the idea of being as close as possible from quantile of the residuals on the testset, we decided to compute the 0.95 empirical quantile over a sliding window of size testset on the lagged residuals extracted from the ARIMA model described above. It yields better results than simply using a frozen in time quantile on residuals since the energetic sobriety period have caused a shift in the distribution over time.
 
 ## Results and Discussion
 
@@ -202,7 +209,7 @@ Regarding Feature Engineering, even though we didn't manage to construct a signi
 
 Another interesting idea concerns the enconding of our different time variables, such as `WeekDays`, `Date` and `toy`. If one thinks about it, the encodings we used are in a certain way suboptimal: time variables have a cyclic nature that standard label encoding can fail to capture. For instance, `toy` represents with a value from 0 to 1 the moment of the year. So 0.4 and 0.5 roughly represent May and June, which is ideal because these months are next to each other, and their representations have also this property. On the other hand, January and December are very close to each other, but their representation is not. So a cyclical encoding of variables could prove a good approach.
 
-Concerning models, we mostly considered Random Forests, for which we had two main ideas in mind: 
+Concerning models, we mostly considered Random Forests, for which we had two main ideas in mind:
 
 -   Fitting Random Forests on the residuals on our most performing model, to further improve performance.
 
