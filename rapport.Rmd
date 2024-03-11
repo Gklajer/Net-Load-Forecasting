@@ -111,11 +111,11 @@ plot(Data0$Temp, Data0$Temp_res_siple)
 plot(Data0$Temp, Data0$Temp_res_windchill)
 ```
 
-However, since these formulas are nonlinear in temperature and wind speed; it is not sufficient to know the average temperature and weather speed to calculate the average perceived temperature. In addition, these formulas are not only quite subjective, but are mostly used to estimate wind chill temperatures in cold climates. There are more accurate formulas that take into account humidity, but we believe that collecting all the necessary data would be an arduous task, probably with little return on investment.
+We can see that the relationship between our new formulas `Temp` is quite linear. These formulas proved ineffective in improving the significance of the original `Temp` variable. However, it has to be noted that since these formulas are nonlinear in temperature and wind speed; it is not sufficient to know the average temperature and weather speed to correctly calculate the average perceived temperature. In addition, these formulas are not only quite subjective, but are mostly used to estimate wind chill temperatures in cold climates. There are more accurate formulas that take into account humidity, but we believe that collecting all the necessary data would be an arduous task, probably with little return on investment.
 
 ## Time Cross-Validation
 
-We developped a time-series cross validation function that better recreates the forecasting scenario, in which training data has temporal precedence over test data. In addition, for practical considerations, the function returns predictions, residuals, RMSE and pinball loss scores as well as means and quantiles of the residuals on the different predictions over the testsets. It should be pointed out that we used a hybrid between the rolling and sliding window methods: the test sets were contiguous and did not overlap. We made extensive use of this function to evaluate the performance of the many models we compared, as it allowed us to have a quick but comprehensive overview of model performance with boxplots of various residual statistics. We also used this function along with corresponding pinball boxplots to calibrate our training window size.
+We developed a time-series cross validation function that better recreates the forecasting scenario, in which training data has temporal precedence over test data. In addition, for practical considerations, the function returns predictions, residuals, RMSE and pinball loss scores as well as means and quantiles of the residuals on the different predictions over the testsets. It should be pointed out that we used a hybrid between the rolling and sliding window methods: the test sets were contiguous and did not overlap. We made extensive use of this function to evaluate the performance of the many models we compared, as it allowed us to have a quick but comprehensive overview of model performance with boxplots of various residual statistics. We also used this function along with corresponding pinball boxplots to calibrate our training window size.
 
 ## Preliminary Models
 
@@ -131,7 +131,7 @@ One approach to solving the second forementioned problem is to simply perform qu
 
 ## GAM
 
-Not long after we started fitting models, we realized GAMs were going to perform better and provide better estimations than the previous models we had tried. The GAM model alongside with the quantile correction were able to address the two problems we were facing: as we mentioned, quantile correction proved to be a great tool to adjust for the 0.95 quantile, and the nature of GAMs made it easy for us to include nonlinear effects in the model.
+Not long after we started fitting models, we realized GAMs were going to perform better and provide better estimates than the previous models we had tried. The GAM model alongside with the quantile correction were able to address the two problems we were facing: as we mentioned, quantile correction proved to be a great tool to adjust for the 0.95 quantile, and the nature of GAMs made it easy for us to include nonlinear effects in the model. We present here part of the evolution of our models over time, comparing our models with a base GAM model. We note that base GAM model performance is slightly overestimated, as for this model the quantiles were estimated in a different, less robust way.
 
 ```{r}
 eq <- Net_demand ~ s(as.numeric(Date),k=3, bs='cr') + s(toy,k=30, bs='cc') +
@@ -141,6 +141,8 @@ eq <- Net_demand ~ s(as.numeric(Date),k=3, bs='cr') + s(toy,k=30, bs='cc') +
   s(Temp,k=10, bs='cr') + s(Temp_s99,k=10, bs='cr') + 
   s(Wind) + te(as.numeric(Date), Nebulosity, k=c(4,10))
 ```
+
+Base model
 
 ![](images/gam0_boxplots.png)
 
@@ -156,6 +158,8 @@ eq <- Net_demand ~ s(Time, k=3, bs='cr') + s(toy,k=30, bs='cc') +
 
 ![](images/gam1_boxplots.png)
 
+We achieved big improvements with the COVID variables, and separating univariate and bivariate effects via the usage of the `ti` function in the GAM equation proved a great way to cherry-pick the most significant effects.
+
 ```{r}
 eq <- Net_demand ~ s(Time, k=3, bs='cr') + s(toy,k=30, bs='cc') +
   WeekDays * BH_before  + BH_Holiday + Holiday + 
@@ -169,7 +173,11 @@ eq <- Net_demand ~ s(Time, k=3, bs='cr') + s(toy,k=30, bs='cc') +
 
 ![](images/gam2_boxplots.png)
 
+The addition of the bivariate effect `WeekDays * BH_before` proved to be extremely effective, as it increased performance and reduced variance.
+
 ## Final Model
+
+We describe in this section the techniques followed to craft our most performing equation, how we found the important bivariate effects and the adjustments made to the model.
 
 ### Covariate Effect Analysis
 
@@ -200,6 +208,11 @@ We can check below that the residuals conform to the Arima hypothesis, i.e. ther
 ### Quantile prediction
 
 For quantile prediction, with the idea of being as close as possible from quantile of the residuals on the testset, we decided to compute the 0.95 empirical quantile over a sliding window of size testset on the lagged residuals extracted from the ARIMA model described above. It yields better results than simply using a frozen in time quantile on residuals since the energetic sobriety period have caused a shift in the distribution over time.
+Some other relationships were found by exploratory analysis techniques:
+
+We fit random forests with trees of varying maximal depths in order to find bivariate effects and to investigate the existence of further multivariate effects.
+
+We also tested for the most promising effects, and ended up retaining only some of them based on summary analysis and actual contributed performance to the model, which we estimated via boxplot analysis.
 
 ## Results and Discussion
 
