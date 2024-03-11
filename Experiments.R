@@ -86,9 +86,6 @@ Data0$Nebulosity_transformed[-sel_c] = Data0$Nebulosity_transformed[-sel_c] * sq
 Data0$Nebulosity_transformed[-sel_c] = Data0$Nebulosity_transformed[-sel_c] + mean(Data0$Nebulosity_transformed[sel_c]) - mean(Data0$Nebulosity_transformed[-sel_c])
 
 Data1$Nebulosity_transformed = Data1$Nebulosity_weighted
-Data1$Nebulosity_transformed[-sel_c] = Data1$Nebulosity_transformed[-sel_c] * sqrt(var(Data1$Nebulosity_transformed[sel_c]) / var(Data1$Nebulosity_transformed[-sel_c]))
-Data1$Nebulosity_transformed[-sel_c] = Data1$Nebulosity_transformed[-sel_c] + mean(Data1$Nebulosity_transformed[sel_c]) - mean(Data1$Nebulosity_transformed[-sel_c])
-
 ###############################################################################################################################################################
 ########################################
 ##### RF
