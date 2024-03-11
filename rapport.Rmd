@@ -1,5 +1,5 @@
 ---
-title: "Rapport"
+title: "Net-Load Forecasting During the Sobriety Period Report"
 author: "Gary Klajer, Pablo Hueso"
 date: "`r Sys.Date()`"
 header-includes:
@@ -11,52 +11,6 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-```
-
-```{r import library, include = FALSE}
-rm(list=objects())
-graphics.off()
-
-library(readr)
-library(lubridate)
-library(forecast)
-library(magrittr)
-library(mgcv)
-library(quantreg)
-library(ranger)
-library(slider)
-library(tidyverse)
-library(yarrr)
-```
-
-```{r import data, include=FALSE}
-Data0 <- read_delim("Data/train.csv", delim = ",")
-Data1 <- read_delim("Data/test.csv", delim = ",")
-
-DataCOVID0 <- read_delim("Data/OxCGRT_simplified_fr/Data0-COVID_Indicators.csv", delim = ",")
-DataCOVID1 <- read_delim("Data/OxCGRT_simplified_fr/Data1-COVID_Indicators.csv", delim = ",")
-
-Data0 <- merge(Data0, DataCOVID0, by="Date")
-Data1 <- merge(Data1, DataCOVID1, by="Date")
-
-Data0$Time <- as.numeric(Data0$Date)
-Data1$Time <- as.numeric(Data1$Date)
-
-Data0$WeekDays <- as.factor(Data0$WeekDays)
-Data1$WeekDays <- as.factor(Data1$WeekDays)
-
-Data0$Temp_res_siple <- (33 + (Data0$Temp - 273.15 - 33)*(0.474 + 0.454*sqrt(Data0$Wind)) - 0.0454*Data0$Wind)+273.15 
-
-Data0$Temp_res_windchill <- (13.12 + 0.6215*(Data0$Temp - 273.15) - 11.37*(Data0$Wind*3.6)**0.16 + 0.3965*(Data0$Temp - 273.15)*(Data0$Wind*3.6)**0.16) + 273.15
-
-sel_a <- which(Data0$Year <= 2021)
-sel_b <- -sel_a
-
-sel_c <- which(Data0$Year >= 2018)
-
-Data0$Nebulosity_transformed = Data0$Nebulosity_weighted
-Data0$Nebulosity_transformed[-sel_c] = Data0$Nebulosity_transformed[-sel_c] * sqrt(var(Data0$Nebulosity_transformed[sel_c]) / var(Data0$Nebulosity_transformed[-sel_c]))
-Data0$Nebulosity_transformed[-sel_c] = Data0$Nebulosity_transformed[-sel_c] + mean(Data0$Nebulosity_transformed[sel_c]) - mean(Data0$Nebulosity_transformed[-sel_c])
 ```
 
 ## Introduction
@@ -105,11 +59,7 @@ $$
  \begin{equation*} \begin{aligned} T_{Simple}^{C^{\circ}} &= 3 + (T_{air}^{C^{\circ}} - 33) \cdot (0.474 + 0.454 \sqrt{V^{Km/h}} - 0.0454 V^{Km/h}) \\ T_{WindChill}^{C^{\circ}} &= 13.2 + 0.6215 T_{air}^{C^{\circ}} - 11.37 V^{Km/h} + 0.3965 T_{air}^{C^{\circ}} V^{Km/h} \end{aligned} \end{equation*}
 $$
 
-```{r windchill, echo=FALSE}
-par(mfrow=c(1,2))
-plot(Data0$Temp, Data0$Temp_res_siple)
-plot(Data0$Temp, Data0$Temp_res_windchill)
-```
+![](images/000014-01-01.png)
 
 We can see that the relationship between our new formulas `Temp` is quite linear. These formulas proved ineffective in improving the significance of the original `Temp` variable. However, it has to be noted that since these formulas are nonlinear in temperature and wind speed; it is not sufficient to know the average temperature and weather speed to correctly calculate the average perceived temperature. In addition, these formulas are not only quite subjective, but are mostly used to estimate wind chill temperatures in cold climates. There are more accurate formulas that take into account humidity, but we believe that collecting all the necessary data would be an arduous task, probably with little return on investment.
 
@@ -183,11 +133,15 @@ We describe in this section the techniques followed to craft our most performing
 
 Much of our progress was based on finding interesting bivariate effects. Many of these effects were found by reasoning, some others were found by different exploratory techniques, and a few findings were serendipitous.
 
-For example, `toy` has an interesting nonlinear relationship with `Solar.power` that we found when thinking about the daytime length variations with seasons: more daytime implies more solar power. Also, during winter, the angle of incidence of the sunlight with respect to the surface is smaller, so the less total light is received for that reason. These effects can be appreciated in the plot:
+For example, `toy` has an interesting nonlinear relationship with `Solar.power` that we found when thinking about the daytime length variations with seasons: more daytime implies more solar power. Also, during winter, the angle of incidence of the sunlight with respect to the surface is smaller, so the less total light is received for that reason. The mixture of these effects can be appreciated here.
 
-(plot)
+![](images/toy_spower-01-01.png)
 
-Some other relationships were found
+Some other relationships were found by exploratory analysis techniques:
+
+We fit random forests with trees of varying maximal depths in order to find bivariate effects and to investigate the existence of further multivariate effects.
+
+We also tested for the most promising effects, and ended up retaining only some of them based on summary analysis and actual contributed performance to the model, which we estimated via boxplot analysis
 
 ### ARIMA
 
@@ -203,24 +157,17 @@ The second big breakthough in performance came when we started using ARIMA.
 
 We can check below that the residuals conform to the Arima hypothesis, i.e. there is no longer any significant correlation and the distribution appears Gaussian.
 
-![](images/clipboard-2299422384.png)
+![](images/checkresiduals-01.png)
 
 ### Quantile prediction
 
 For quantile prediction, with the idea of being as close as possible from quantile of the residuals on the testset, we decided to compute the 0.95 empirical quantile over a sliding window of size testset on the lagged residuals extracted from the ARIMA model described above. It yields better results than simply using a frozen in time quantile on residuals since the energetic sobriety period have caused a shift in the distribution over time.
-Some other relationships were found by exploratory analysis techniques:
-
-We fit random forests with trees of varying maximal depths in order to find bivariate effects and to investigate the existence of further multivariate effects.
-
-We also tested for the most promising effects, and ended up retaining only some of them based on summary analysis and actual contributed performance to the model, which we estimated via boxplot analysis.
 
 ## Results and Discussion
 
 Although we placed #1 in the competition, we know that our model is not perfect and has still a lot of room for improvement. We list here some ideas we had to further improve our predictions that we could not implement due to lack of time, that could be interesting to expand on our work in the future.
 
 Regarding Feature Engineering, even though we didn't manage to construct a significant perceived temperature variable, we still believe it could have a positive effect in the models, and could be a step in the right direction if the right data is found online.
-
-Another interesting idea concerns the enconding of our different time variables, such as `WeekDays`, `Date` and `toy`. If one thinks about it, the encodings we used are in a certain way suboptimal: time variables have a cyclic nature that standard label encoding can fail to capture. For instance, `toy` represents with a value from 0 to 1 the moment of the year. So 0.4 and 0.5 roughly represent May and June, which is ideal because these months are next to each other, and their representations have also this property. On the other hand, January and December are very close to each other, but their representation is not. So a cyclical encoding of variables could prove a good approach.
 
 Concerning models, we mostly considered Random Forests, for which we had two main ideas in mind:
 
@@ -231,3 +178,5 @@ Concerning models, we mostly considered Random Forests, for which we had two mai
 The first idea arose after analyzing the residuals of our model. If clear periodicities can be observed in the residuals, the performance of the model can probably be improved; since a sufficiently advanced model should leave white noise as a residual. We think that fitting a Random Forest model to the residuals could be a great idea, since our model is mainly focused on capturing bivariate effects between covariates, and a sufficiently deep tree model can capture more complex interactions.
 
 The second idea was to fit a model independent of our GAM, and then combine these models through expert aggregation. The Random Forest is a model conceptually very different from a GAM, a desirable property when aggregating different predictions through this technique. Given the importance of online learning in our problem, we believe that more complex expert aggregations involving several models could have great performance. The next steps in this direction would consist on the exploration of diverse regression models, such as XGboost, KNN regressions, etc.
+
+Another idea that could be worth trying is instead of fitting a single model to predict `Load`, fit three models to predict `Solar_power`, `Wind_power` and `Load`, and then combining them to predict `Net_demand`. This approach would constitute a cleaner framework for exploratory analysis while conserving all the performance of the standard approach.

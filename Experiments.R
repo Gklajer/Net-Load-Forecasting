@@ -242,7 +242,7 @@ mod.gam.arima.1 = Arima(Net_demand.1.ts, xreg=mod.gam.pred.1.ts, model=mod.gam.a
 checkresiduals(mod.gam.arima.1)
 
 mod.gam.arima.forecast.1 = tail(mod.gam.arima.1$fitted, testset_size)
-quant = tail(sliding_quantile(mod.gam.arima.1$residuals, window_size=testset_size, .97), testset_size+1)
+quant = tail(sliding_quantile(mod.gam.arima.1$residuals, window_size=testset_size, .95), testset_size+1)
 quant.1 = lag(quant)[-1]
 quant = quant[-1]
 
